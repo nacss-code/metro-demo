@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>感官轉乘站 Metro Sense - Full Experience Edition</title>
+    <!-- 引入 QR Code 掃描套件 -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            /* 療癒系配色 Healing Palette */
+            --sage: #94A89A;          
+            --sage-dark: #7A8F80;
+            --rose: #E8D3D1;          
+            --rose-dark: #D4BCBA;
+            --rose-pale: #F8F1F1;
+            --text-main: #4A4A4A;     
+            --text-muted: #8B8B8B;
+            --bg-main: #FCFBF9;       
+            --bg-alt: #F4F5F3;        
+            --border: #E8EBE9;
+            
+            --blue: #5C8EBD;  
+            --red: #D66B6B;   
+            --green: #6A9E82; 
+            --orange: #EAA86A;
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: #D5D8D6; 
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        #app {
+            background: var(--bg-main);
+            width: 100%;
+            max-width: 430px; 
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden; 
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            animation: fadeSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding-bottom: calc(70px + var(--safe-bottom)); 
+        }
+
+        .screen.active { display: flex; }
+
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- MOCK LIFF LOADER --- */
+        #liff-loader {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--sage); color: #fff; z-index: 1000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.4s ease;
+        }
+        .spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* --- TOAST NOTIFICATION --- */
+        .toast {
+            position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            background: var(--sage-dark); color: #fff; padding: 14px 28px;
+            border-radius: 30px; font-weight: 700; font-size: clamp(14px, 4vw, 15px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 9999;
+            opacity: 0; pointer-events: none; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            white-space: nowrap;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* --- CENTERED MODAL --- */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-content {
+            background: #fff; border-radius: 24px; padding: 32px 24px;
+            width: 85%; max-width: 320px; text-align: center;
+            transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+        .modal-icon {
+            width: 80px; height: 80px; background: var(--rose-pale); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 40px; margin: 0 auto 16px; border: 2px solid var(--rose);
+        }
+        .modal-title { font-size: 22px; font-weight: 900; color: var(--text-main); margin-bottom: 8px; }
+        .modal-desc { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; white-space: pre-line;}
+
+        /* --- TOP NAV --- */
+        .topnav {
+            background: var(--sage);
+            padding: clamp(12px, 3vh, 16px) 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .logo-group { display: flex; align-items: center; gap: 10px; transition: opacity 0.2s; cursor: pointer; }
+        .logo-group:active { opacity: 0.7; }
+        .logo-mark {
+            width: 30px; height: 30px; background: #fff; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; color: var(--sage); font-family: 'Space Mono', monospace;
+        }
+        .logo-text { color: #fff; line-height: 1.2; }
+        .logo-text h1 { font-size: 13px; font-weight: 700; }
+        .logo-text span { font-size: 9px; color: rgba(255,255,255,0.8); font-family: 'Space Mono', monospace; display: block; letter-spacing: 0.5px;}
+
+        .pts-badge {
+            background: rgba(255,255,255,0.2); color: #fff; padding: 4px 10px;
+            border-radius: 20px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
+            white-space: nowrap;
+        }
+
+        /* --- HERO --- */
+        .hero { background: var(--rose); padding: clamp(16px, 4vh, 24px) 20px; position: relative; overflow: hidden; }
+        .hero::after {
+            content: ''; position: absolute; right: -10%; bottom: -30%;
+            width: 150px; height: 150px; background: rgba(255,255,255,0.4); border-radius: 50%;
+        }
+        .hero-tag { font-family: 'Space Mono', monospace; font-size: clamp(9px, 2.5vw, 10px); font-weight: 700; color: var(--sage-dark); letter-spacing: 1.5px; margin-bottom: 8px; }
+        .hero-title { font-size: clamp(20px, 6vw, 24px); font-weight: 900; color: var(--text-main); line-height: 1.3; margin-bottom: 8px; letter-spacing: -0.5px; }
+        .hero-desc { font-size: clamp(12px, 3.5vw, 13px); color: var(--text-main); opacity: 0.8; line-height: 1.6; }
+
+        /* --- STATION STATUS --- */
+        .station-status { background: var(--bg-alt); padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .st-info { display: flex; align-items: center; gap: 12px; }
+        .st-dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; border: 3px solid rgba(255,255,255,0.8); box-shadow: 0 0 0 1px var(--border); flex-shrink: 0;}
+        .st-name { font-size: clamp(13px, 4vw, 14px); font-weight: 700; color: var(--text-main);}
+        .st-time { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--text-muted); }
+
+        /* --- CARDS --- */
+        .dashboard { padding: clamp(12px, 3vw, 20px); display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 2vw, 12px); }
+        .stat-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: clamp(12px, 3vw, 16px); box-shadow: 0 2px 12px rgba(0,0,0,0.02); }
+        .stat-label { font-size: clamp(10px, 2.5vw, 11px); color: var(--text-muted); font-family: 'Space Mono', monospace; margin-bottom: 6px; font-weight: 700; }
+        .stat-val { font-size: clamp(20px, 6vw, 24px); font-weight: 900; color: var(--sage-dark); }
+        .stat-val span { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-left: 2px;}
+
+        /* --- BUTTONS --- */
+        .btn-main, .btn-rose, .btn-ghost {
+            width: 100%; border-radius: 16px; font-size: clamp(14px, 4vw, 15px); font-weight: 700; 
+            padding: clamp(14px, 4vw, 16px); cursor: pointer; transition: background 0.2s, transform 0.1s; 
+            font-family: 'Noto Sans TC', sans-serif; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-main { background: var(--sage); color: #fff; border: none; }
+        .btn-main:active { transform: scale(0.98); background: var(--sage-dark);}
+        .btn-rose { background: var(--rose); color: var(--text-main); border: none; }
+        .btn-rose:active { transform: scale(0.98); background: var(--rose-dark);}
+        .btn-ghost { background: transparent; border: 1.5px solid var(--sage); color: var(--sage-dark); }
+        
+        /* --- QR SCANNER UI --- */
+        .scanner-container { padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #qr-reader { width: 100%; max-width: 320px; border-radius: 16px; overflow: hidden; border: 2px solid var(--sage); background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 20px;}
+        #qr-reader img { display: none; } 
+        #qr-reader__dashboard_section_csr span { color: #fff !important; }
+        
+        /* --- MISSION UI --- */
+        .mission-area { padding: clamp(16px, 4vh, 24px) 20px; flex: 1; display: flex; flex-direction: column;}
+        .m-tag { display: inline-block; align-self: flex-start; background: var(--rose-pale); color: var(--rose-dark); border: 1px solid var(--rose); font-family: 'Space Mono', monospace; font-size: 11px; padding: 4px 10px; border-radius: 8px; margin-bottom: 12px; font-weight: 700; }
+        .m-q { font-size: clamp(18px, 5.5vw, 22px); font-weight: 900; margin-bottom: 10px; line-height: 1.4; color: var(--text-main);}
+        .m-hint { font-size: clamp(12px, 3.5vw, 13px); color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
+        .m-input { width: 100%; background: #fff; border: 2px solid var(--border); border-radius: 16px; padding: 16px; font-size: clamp(14px, 4vw, 15px); font-family: inherit; outline: none; resize: none; transition: all 0.2s; margin-bottom: 10px; color: var(--text-main); line-height: 1.6;}
+        .m-input:focus { border-color: var(--sage); box-shadow: 0 0 0 4px rgba(148, 168, 154, 0.1);}
+        .char-count { text-align: right; font-size: 11px; color: var(--text-muted); font-family: 'Space Mono', monospace;}
+        
+        .choice-list { display: flex; flex-direction: column; gap: clamp(8px, 2vh, 12px); }
+        .choice-item { background: #fff; border: 2px solid var(--border); padding: clamp(12px, 3vw, 16px); border-radius: 16px; font-size: clamp(14px, 4vw, 15px); cursor: pointer; transition: all 0.2s; font-weight: 500; color: var(--text-main); line-height: 1.4;}
+        .choice-item:active { transform: scale(0.98); }
+        .choice-item.selected { border-color: var(--sage); background: rgba(148, 168, 154, 0.05); font-weight: 700; color: var(--sage-dark);}
+
+        /* --- MOOD UI --- */
+        .mood-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(8px, 2vw, 12px); margin-bottom: clamp(16px, 3vh, 24px); }
+        .mood-btn { background: #fff; border: 2px solid var(--border); padding: clamp(12px, 3vw, 18px) 4px; border-radius: 16px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .mood-btn.selected { border-color: var(--sage); background: rgba(148, 168, 154, 0.05); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(148, 168, 154, 0.15);}
+        .mood-emoji { font-size: clamp(26px, 8vw, 32px); margin-bottom: 6px; display: block; }
+        .mood-label { font-size: clamp(12px, 3.5vw, 13px); font-weight: 700; color: var(--text-main); }
+
+        /* --- BOARDS & REWARDS --- */
+        .tabs { display: flex; border-bottom: 2px solid var(--border); margin: 0 20px 20px; }
+        .tab-btn { flex: 1; padding: 14px 0; background: none; border: none; font-size: 14px; font-weight: 700; color: var(--text-muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; font-family: 'Noto Sans TC', sans-serif;}
+        .tab-btn.active { color: var(--sage-dark); border-bottom-color: var(--sage-dark); }
+
+        .post { background: var(--bg-alt); border-radius: 16px; padding: clamp(12px, 3vw, 16px); margin-bottom: 12px; transition: transform 0.2s; border: 1px solid rgba(0,0,0,0.02);}
+        .post-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; font-family: 'Space Mono', monospace;}
+        .post-tag { background: #fff; color: var(--sage-dark); padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;}
+        .post-content { font-size: clamp(13px, 3.5vw, 14px); line-height: 1.6; color: var(--text-main); margin-bottom: 12px; font-weight: 500;}
+        .post-footer { display: flex; align-items: center; justify-content: space-between; }
+        .post-mood { background: #fff; border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; color: var(--text-main);}
+
+        .rw-item { background: #fff; border: 1px solid var(--border); padding: clamp(12px, 3vw, 16px); border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: clamp(10px, 3vw, 16px); box-shadow: 0 2px 6px rgba(0,0,0,0.02);}
+        .rw-icon { width: clamp(40px, 12vw, 50px); height: clamp(40px, 12vw, 50px); background: var(--bg-alt); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: clamp(20px, 6vw, 26px); border: 1px solid var(--border); flex-shrink: 0;}
+        .rw-info { flex: 1; overflow: hidden; }
+        .rw-name { font-size: clamp(13px, 4vw, 15px); font-weight: 700; margin-bottom: 4px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .rw-meta { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-family: 'Space Mono', monospace; color: var(--text-muted); }
+        .rw-btn { background: var(--sage); color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background 0.2s;}
+
+        select { appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="%234A4A4A" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>'); background-repeat: no-repeat; background-position: right 12px center; }
+        .spin-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0 20px; }
+        .wheel-box { position: relative; width: 240px; height: 240px; margin-bottom: 24px; }
+        #rw-wheel-canvas { width: 100%; height: 100%; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.08)); }
+        .wheel-pointer { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 24px solid var(--sage-dark); z-index: 10; }
+        .wheel-pointer::after { content: ''; position: absolute; top: -24px; left: -10px; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 18px solid var(--rose); }
+
+        /* --- BOTTOM NAV (4 Items) --- */
+        .bottom-nav { 
+            background: rgba(252, 251, 249, 0.95); 
+            backdrop-filter: blur(10px); 
+            border-top: 1px solid var(--border); 
+            display: flex; 
+            padding: 10px 10px var(--safe-bottom); 
+            position: absolute; 
+            bottom: 0; left: 0; width: 100%; z-index: 100; 
+        }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #B0B5B2; font-size: 10px; font-weight: 700; cursor: pointer; transition: color 0.2s; }
+        .nav-item.active { color: var(--sage-dark); }
+        .nav-icon { font-size: clamp(20px, 6vw, 22px); margin-bottom: 2px;}
+
+        /* Helpers */
+        .hidden { display: none !important; }
+        .disabled-action { opacity: 0.4; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <!-- LIFF LOADER MOCK -->
+    <div id="liff-loader">
+        <div class="spinner"></div>
+        <div style="font-weight: 700; font-family: 'Space Mono', monospace; letter-spacing: 1px;">METRO SENSE INIT...</div>
+        <div style="font-size: 12px; margin-top: 8px; opacity: 0.9;" id="loader-msg">正在讀取 QR Code 站點資訊...</div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div class="toast" id="global-toast">提示訊息</div>
+
+    <!-- CENTERED MODAL -->
+    <div class="modal-overlay" id="reward-modal">
+        <div class="modal-content">
+            <div class="modal-icon" id="modal-icon">🎁</div>
+            <div class="modal-title" id="modal-title">恭喜中獎！</div>
+            <div class="modal-desc" id="modal-desc">獲得獎品內容</div>
+            <button class="btn-main" id="modal-btn" onclick="closeModal()">確定</button>
+        </div>
+    </div>
+
+    <!-- ==================== HOME SCREEN ==================== -->
+    <div class="screen" id="scr-home">
+        <div class="topnav">
+            <div class="logo-group" onclick="navTo('scr-home')">
+                <div class="logo-mark">Y</div>
+                <div class="logo-text">
+                    <h1>臺北市政府青年局</h1>
+                    <span>DEPT. FOR YOUTH, TAIPEI</span>
+                </div>
+            </div>
+            <div class="pts-badge"><span class="nav-pts-badge">280</span> pt</div>
+        </div>
+        
+        <div class="hero">
+            <div class="hero-tag">METRO SENSE · 感官轉乘站</div>
+            <div class="hero-title">兩分鐘，<br>與城市深度對話</div>
+            <div class="hero-desc">專為通勤族設計的心理緩衝空間。<br>掃描捷運站 QR Code，開啟專屬體驗。</div>
+        </div>
+
+        <div class="station-status">
+            <div class="st-info">
+                <div class="st-dot" id="home-st-dot"></div>
+                <div class="st-name" id="current-station">尚未定位</div>
+            </div>
+            <div class="st-time" id="current-time">--:--</div>
+        </div>
+
+        <div class="dashboard">
+            <div class="stat-card">
+                <div class="stat-label">累積感官點數</div>
+                <div class="stat-val" id="dash-pts">280<span>pt</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">已釋放壓力</div>
+                <div class="stat-val" id="dash-missions">14<span>次</span></div>
+            </div>
+        </div>
+
+        <div style="padding: 0 20px 20px; display: flex; flex-direction: column; gap: 12px;">
+            <button class="btn-main" onclick="openScanner()">
+                <span style="font-size: 18px; margin-right: 4px;">📷</span> 掃描站點 QR Code
+            </button>
+            <button class="btn-ghost" onclick="startRandomMission()" style="margin: 0; width: 100%;">
+                <span style="font-size: 18px; margin-right: 4px;">✨</span> 隨機直接抽取任務
+            </button>
+        </div>
+
+        <div class="feed-section">
+            <div class="section-header">
+                <div class="section-title">💬 最新共鳴</div>
+                <div style="font-size: 12px; color: var(--sage-dark); font-weight: 700; cursor:pointer;" onclick="navTo('scr-board', 'group')">前往留言板 →</div>
+            </div>
+            <div class="feed-container" id="home-feed-preview">
+                <!-- Preview Feed injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== QR SCANNER SCREEN ==================== -->
+    <div class="screen" id="scr-scan">
+        <div class="topnav" style="background: #111;">
+            <div class="logo-group" onclick="closeScanner()" style="cursor:pointer;">
+                <button style="background:none; border:none; font-size: 24px; color: #fff; cursor:pointer; margin-right: 8px;">←</button>
+                <div class="logo-text">
+                    <h1 style="color:#fff; font-size: 15px;">臺北市政府青年局</h1>
+                    <span style="color:rgba(255,255,255,0.6);">掃描站點海報</span>
+                </div>
+            </div>
+        </div>
+        <div class="scanner-container" style="background: #222; flex:1;">
+            <div style="color: #fff; font-size: 14px; margin-bottom: 20px; text-align: center;">請將鏡頭對準捷運站內的<br>「感官轉乘站 QR Code」</div>
+            
+            <div id="qr-reader"></div>
+            
+            <div style="margin-top: auto; padding-top: 20px; width: 100%; max-width: 320px;">
+                <div style="font-size: 12px; color: #888; text-align: center; margin-bottom: 10px;">如果身邊沒有實體 QR Code，可點擊下方測試</div>
+                <button class="btn-ghost" style="border-color: #555; color: #ccc;" onclick="mockScanSuccess()">[測試用] 模擬掃描成功</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MISSION SCREEN ==================== -->
+    <div class="screen active" id="scr-mission">
+        <div class="topnav" style="background: var(--bg-main); border-bottom: 1px solid var(--border);">
+            <div class="logo-group" onclick="navTo('scr-home')">
+                <button style="background:none; border:none; font-size: 24px; color: var(--sage-dark); cursor:pointer; margin-right: 8px;">←</button>
+                <div class="logo-text">
+                    <h1 style="color:var(--sage-dark); font-size: 15px;">臺北市政府青年局</h1>
+                    <span style="color:var(--text-muted);">感官派發任務</span>
+                </div>
+            </div>
+            <div class="pts-badge" style="background: var(--bg-alt); color: var(--sage-dark); border: 1px solid var(--border);"><span class="nav-pts-badge">280</span> pt</div>
+        </div>
+        <div class="mission-area">
+            <div style="font-size: 13px; color: var(--sage-dark); margin-bottom: 16px; font-weight: 700; display:flex; align-items:center; gap:6px;">
+                <span style="font-size:16px;">📍</span>已定位：<span id="mission-station-name">載入中...</span>
+            </div>
+            <div id="mission-content">
+                <!-- Mission injected here -->
+            </div>
+            <div style="flex:1; min-height: 20px;"></div>
+            <button class="btn-main disabled-action" id="mission-next" onclick="finishMission()">記錄觀察 →</button>
+        </div>
+    </div>
+
+    <!-- ==================== MOOD SCREEN ==================== -->
+    <div class="screen" id="scr-mood">
+        <div class="topnav">
+            <div class="logo-group" onclick="navTo('scr-home')">
+                <div class="logo-mark">Y</div>
+                <div class="logo-text">
+                    <h1>臺北市政府青年局</h1>
+                    <span>紀錄心情</span>
+                </div>
+            </div>
+        </div>
+        <div style="padding: clamp(16px, 4vh, 24px) 20px; flex: 1; display: flex; flex-direction: column;">
+            <div class="m-q" style="margin-bottom: 8px;">完成觀察了！<br>此刻的感覺如何？</div>
+            <div class="m-hint" style="margin-bottom: 16px;">選一個最貼近當下的表情，送出至共鳴牆。</div>
+            
+            <div class="mood-grid">
+                <div class="mood-btn" onclick="selectMood(this, '😌', '平靜')"><span class="mood-emoji">😌</span><span class="mood-label">平靜</span></div>
+                <div class="mood-btn" onclick="selectMood(this, '😊', '愉快')"><span class="mood-emoji">😊</span><span class="mood-label">愉快</span></div>
+                <div class="mood-btn" onclick="selectMood(this, '😴', '疲憊')"><span class="mood-emoji">😴</span><span class="mood-label">疲憊</span></div>
+                <div class="mood-btn" onclick="selectMood(this, '⚡', '活力')"><span class="mood-emoji">⚡</span><span class="mood-label">活力</span></div>
+                <div class="mood-btn" onclick="selectMood(this, '🌀', '紛亂')"><span class="mood-emoji">🌀</span><span class="mood-label">紛亂</span></div>
+                <div class="mood-btn" onclick="selectMood(this, '🌿', '感恩')"><span class="mood-emoji">🌿</span><span class="mood-label">感恩</span></div>
+            </div>
+
+            <textarea class="m-input" id="mood-note" placeholder="想補充點什麼嗎？(選填，將匿名發布至共鳴牆)" rows="3" style="flex:1; min-height: 80px; background:#fff;"></textarea>
+            
+            <button class="btn-main disabled-action" id="mood-submit" onclick="submitResult()" style="margin-top: 16px;">儲存並前往留言板</button>
+        </div>
+    </div>
+
+    <!-- ==================== MESSAGE BOARDS SCREEN ==================== -->
+    <div class="screen" id="scr-board">
+        <div class="topnav">
+            <div class="logo-group" onclick="navTo('scr-home')">
+                <div class="logo-mark">Y</div>
+                <div class="logo-text">
+                    <h1>臺北市政府青年局</h1>
+                    <span>心情留言板</span>
+                </div>
+            </div>
+            <div class="pts-badge"><span class="nav-pts-badge">280</span> pt</div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-group" onclick="switchBoardTab('group')">團體心情牆</button>
+            <button class="tab-btn" id="tab-personal" onclick="switchBoardTab('personal')">我的專屬日誌</button>
+        </div>
+
+        <div id="pane-group" style="padding: 0 20px;">
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; text-align: center;">這裡匯集了台北各地通勤者的當下頻率。</div>
+            <div id="board-group-list"></div>
+        </div>
+
+        <div id="pane-personal" class="hidden" style="padding: 0 20px;">
+            <div id="board-personal-list"></div>
+        </div>
+    </div>
+
+    <!-- ==================== REWARDS (GACHA) SCREEN ==================== -->
+    <div class="screen" id="scr-reward">
+        <div class="topnav">
+            <div class="logo-group" onclick="navTo('scr-home')">
+                <div class="logo-mark">Y</div>
+                <div class="logo-text">
+                    <h1>臺北市政府青年局</h1>
+                    <span>兌換優惠</span>
+                </div>
+            </div>
+            <div class="pts-badge"><span class="nav-pts-badge">280</span> pt</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-rw-spin" onclick="switchRwTab('spin')">美食扭蛋機</button>
+            <button class="tab-btn" id="tab-rw-coupons" onclick="switchRwTab('coupons')">我的票券</button>
+        </div>
+
+        <!-- 輪盤抽獎區 -->
+        <div id="pane-rw-spin" style="padding: 0 20px; display: flex; flex-direction: column; flex: 1;">
+            <div style="background: #fff; padding: 16px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 20px;">
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 700;">1. 選擇你想兌換優惠的站點</div>
+                <select id="rw-station-select" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 15px; color: var(--text-main); font-weight: 700; background: var(--bg-alt); outline: none;">
+                    <option value="板橋站">板橋站 Banqiao</option>
+                    <option value="台北車站">台北車站 Taipei Main</option>
+                    <option value="中山站">中山站 Zhongshan</option>
+                    <option value="忠孝新生">忠孝新生 Zhongxiao Xinsheng</option>
+                    <option value="市政府站">市政府站 Taipei City Hall</option>
+                </select>
+            </div>
+            
+            <div class="spin-wrap">
+                <div class="wheel-box">
+                    <div class="wheel-pointer"></div>
+                    <canvas id="rw-wheel-canvas"></canvas>
+                </div>
+                <button class="btn-main" id="rw-spin-btn" onclick="spinReward()">
+                    <span style="font-size: 16px; margin-right: 4px;">🎯</span> 花費 100 pt 抽取美食
+                </button>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 16px; text-align: center;">每次抽取皆有機會獲得該站點周邊美食折價券</div>
+            </div>
+        </div>
+
+        <!-- 我的票券區 -->
+        <div id="pane-rw-coupons" class="hidden" style="padding: 0 20px;">
+            <div id="reward-coupon-list"></div>
+        </div>
+    </div>
+
+    <!-- ==================== BOTTOM NAV ==================== -->
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="navTo('scr-home')">
+            <span class="nav-icon">🏠</span>
+            <span>首頁</span>
+        </div>
+        <div class="nav-item active" onclick="startRandomMission()">
+            <span class="nav-icon">✨</span>
+            <span>任務</span>
+        </div>
+        <div class="nav-item" onclick="navTo('scr-board', 'group')">
+            <span class="nav-icon">💬</span>
+            <span>留言板</span>
+        </div>
+        <div class="nav-item" onclick="navTo('scr-reward')">
+            <span class="nav-icon">🎁</span>
+            <span>兌換</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- DATA & CONFIG ---
+    const MISSIONS = [
+        { id: 1, type: 'fill', tag: '視覺觀察', wheel: '視覺', q: '現在，視野中哪個顏色或物體最吸引你？', hint: '不需分析，直覺寫下它在哪裡、是什麼形狀。', pts: 25 },
+        { id: 2, type: 'fill', tag: '聽覺捕捉', wheel: '聽覺', q: '除了列車運行聲，你現在還聽到了什麼？', hint: '即使是輕微的腳步聲、遠處的廣播，或是自己的呼吸聲。', pts: 25 },
+        { id: 3, type: 'choice', tag: '心境模擬', wheel: '感受', q: '若將此刻周遭的人群氛圍比喻成天氣，會是什麼？', choices: ['悶熱的午後雷陣雨', '充滿霧氣的清晨', '規律的梅雨季', '冬日裡的一抹暖陽'], pts: 30 },
+        { id: 4, type: 'think', tag: '深度思考', wheel: '哲學', q: '如果今天的通勤有主題曲，那會是哪種感覺？', hint: '是輕快的爵士、重低音搖滾，還是無聲的白噪音？', pts: 35 },
+        { id: 5, type: 'fill', tag: '嗅覺線索', wheel: '嗅覺', q: '深呼吸，空氣中有沒有任何細微的味道？', hint: '可能是乾冷的空調味、某人的香水，或是剛下過雨的潮濕味。', pts: 30 },
+        { id: 6, type: 'choice', tag: '觸覺體驗', wheel: '觸覺', q: '此刻你的身體，哪一個部位感覺最放鬆/緊繃？', choices: ['肩膀有些緊繃', '雙腳穩穩踩著地板', '手握著冰涼的扶手', '全身正放鬆靠著椅背'], pts: 25 }
+    ];
+
+    const RW_SLICES = [
+        { text: '拉麵 8 折', color: '#94A89A', icon: '🍜' },
+        { text: '甜點半價', color: '#E8D3D1', icon: '🍰' },
+        { text: '簡餐折 50', color: '#7A8F80', icon: '🍛' },
+        { text: '銘謝惠顧', color: '#F4F5F3', icon: '💨' }, 
+        { text: '居酒屋 9 折', color: '#D4BCBA', icon: '🍢' },
+        { text: '咖啡買一送一', color: '#F8F1F1', icon: '☕' }
+    ];
+
+    const STATIONS = [
+        { name: "板橋站 Banqiao", color: "var(--blue)" }, 
+        { name: "台北車站 Taipei Main", color: "var(--red)" }, 
+        { name: "中山站 Zhongshan", color: "var(--green)" }, 
+        { name: "忠孝新生 Zhongxiao Xinsheng", color: "var(--orange)" },
+        { name: "市政府站 Taipei City Hall", color: "var(--blue)" }
+    ];
+
+    let COMMUNITY_POSTS = [
+        { station: "市政府站", mood: "😌", moodLabel: "平靜", content: "這站的人流聽起來像海浪，雖然擠但很有節奏感。", time: "2 分鐘前", tag: "聽覺捕捉", isMine: false },
+        { station: "中山站", mood: "😊", moodLabel: "愉快", content: "看到一個穿著亮黃色大衣的老先生，心情莫名變好了。", time: "12 分鐘前", tag: "視覺觀察", isMine: false },
+        { station: "台電大樓站", mood: "😴", moodLabel: "疲憊", content: "冷氣很強，手握著冰涼的鐵桿，只想趕快回家躺下。", time: "28 分鐘前", tag: "觸覺體驗", isMine: false }
+    ];
+
+    let state = {
+        pts: 320,
+        missionsDone: 14,
+        currentStation: null, 
+        currentMission: null,
+        userAnswer: '',
+        userMood: null,
+        userMoodLabel: '',
+        hasReceivedPointsToday: false,
+        logs: [
+            { q: "若將此刻周遭的人群氛圍比喻成天氣，會是什麼？", ans: "冬日裡的一抹暖陽", mood: "😌", moodLabel: "平靜", time: "昨天", station: "中山站", pts: 30 },
+            { q: "除了列車運行聲，你現在還聽到了什麼？", ans: "遠處的薩克斯風藝人練習聲", mood: "😊", moodLabel: "愉快", time: "前天", station: "台北車站", pts: 25 }
+        ],
+        coupons: [
+            { name: "咖啡買一送一", station: "中山站", icon: "☕", date: "2024/05/18" }
+        ]
+    };
+
+    let html5QrcodeScanner = null;
+
+    // --- INIT LOGIC (Simulate QR Scan Entry) ---
+    window.onload = () => {
+        startLiveClock(); 
+        
+        setTimeout(() => {
+            document.getElementById('loader-msg').innerText = "📍 成功解析！正在為您準備任務...";
+            
+            setTimeout(() => {
+                document.getElementById('liff-loader').style.opacity = '0';
+                setTimeout(() => document.getElementById('liff-loader').style.display = 'none', 400);
+                
+                const todayStr = new Date().toLocaleDateString();
+                if (localStorage.getItem('metro_sense_last_points_date') === todayStr) {
+                    state.hasReceivedPointsToday = true;
+                }
+                
+                state.currentStation = STATIONS[Math.floor(Math.random() * STATIONS.length)];
+                updateHomeUI(); 
+                
+                startRandomMission();
+            }, 800);
+        }, 800);
+    };
+
+    // --- LIVE CLOCK ---
+    function startLiveClock() {
+        const timeEl = document.getElementById('current-time');
+        if (!timeEl) return;
+        function tick() {
+            const now = new Date();
+            timeEl.innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        }
+        tick();
+        setInterval(tick, 1000);
+    }
+
+    // --- TOAST NOTIFICATION ---
+    function showToast(msg) {
+        const toast = document.getElementById('global-toast');
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // --- CENTERED MODAL ---
+    let modalCallback = null;
+    function showModal(title, icon, desc, btnText, callback) {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-icon').innerText = icon;
+        document.getElementById('modal-desc').innerText = desc;
+        
+        const btn = document.getElementById('modal-btn');
+        btn.innerText = btnText;
+        modalCallback = callback;
+        
+        document.getElementById('reward-modal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('reward-modal').classList.remove('active');
+        if (modalCallback) {
+            modalCallback();
+            modalCallback = null;
+        }
+    }
+
+    // --- NAVIGATION ---
+    function navTo(screenId, tabStr = null) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+        
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        if(screenId === 'scr-home') document.querySelectorAll('.nav-item')[0].classList.add('active');
+        if(screenId === 'scr-mission') document.querySelectorAll('.nav-item')[1].classList.add('active');
+        if(screenId === 'scr-board') {
+            document.querySelectorAll('.nav-item')[2].classList.add('active');
+            if(tabStr) switchBoardTab(tabStr);
+        }
+        if(screenId === 'scr-reward') {
+            document.querySelectorAll('.nav-item')[3].classList.add('active');
+            switchRwTab('spin'); 
+        }
+
+        document.querySelectorAll('.nav-pts-badge').forEach(el => el.innerText = state.pts);
+        
+        if(screenId === 'scr-home') updateHomeUI();
+        document.getElementById(screenId).scrollTop = 0;
+    }
+
+    // --- UI UPDATES (HOME) ---
+    function updateHomeUI() {
+        document.querySelectorAll('.nav-pts-badge').forEach(el => el.innerText = state.pts);
+        document.getElementById('dash-pts').innerHTML = `${state.pts}<span>pt</span>`;
+        document.getElementById('dash-missions').innerHTML = `${state.missionsDone}<span>次</span>`;
+        
+        if (state.currentStation) {
+            document.getElementById('current-station').innerText = state.currentStation.name;
+            document.getElementById('home-st-dot').style.background = state.currentStation.color;
+        } else {
+            document.getElementById('current-station').innerText = "尚未定位，請掃描 QR Code";
+            document.getElementById('home-st-dot').style.background = "#ccc";
+        }
+
+        renderHomeFeedPreview();
+    }
+
+    function renderHomeFeedPreview() {
+        const feed = document.getElementById('home-feed-preview');
+        const previewPosts = COMMUNITY_POSTS.slice(0, 2);
+        feed.innerHTML = previewPosts.map(p => `
+            <div class="post">
+                <div class="post-header">
+                    <span>${p.time} · ${p.station}</span>
+                    <span class="post-tag">${p.tag}</span>
+                </div>
+                <div class="post-content">${p.content}</div>
+                <div class="post-footer">
+                    <div class="post-mood"><span style="font-size:14px;">${p.mood}</span> ${p.moodLabel}</div>
+                    <span style="font-size: 16px; color: var(--text-muted); cursor:pointer;">🤍</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // --- QR SCANNER LOGIC ---
+    function openScanner() {
+        navTo('scr-scan');
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "qr-reader", 
+                { fps: 10, qrbox: {width: 250, height: 250}, aspectRatio: 1.0 },
+                false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+    }
+
+    function closeScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear().catch(e => console.error(e));
+            html5QrcodeScanner = null;
+        }
+        navTo('scr-home');
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        closeScanner();
+        triggerStationUnlock();
+    }
+
+    function onScanFailure(error) { /* Ignore */ }
+
+    function mockScanSuccess() {
+        closeScanner();
+        triggerStationUnlock();
+    }
+
+    function triggerStationUnlock() {
+        showToast("🔍 成功解析站點資訊！");
+        
+        setTimeout(() => {
+            state.currentStation = STATIONS[Math.floor(Math.random() * STATIONS.length)];
+            const shortStationName = state.currentStation.name.split(' ')[0];
+            document.getElementById('mission-station-name').innerText = shortStationName;
+            
+            const idx = Math.floor(Math.random() * MISSIONS.length);
+            loadMission(idx);
+        }, 500);
+    }
+
+    function simulateQRScan() {
+        // 從首頁模擬跳轉掃碼
+        openScanner();
+    }
+
+    // --- MISSION LOGIC ---
+    function startRandomMission() {
+        if (!state.currentStation) {
+            state.currentStation = STATIONS[Math.floor(Math.random() * STATIONS.length)];
+        }
+        const shortStationName = state.currentStation.name.split(' ')[0];
+        document.getElementById('mission-station-name').innerText = shortStationName;
+
+        const idx = Math.floor(Math.random() * MISSIONS.length);
+        loadMission(idx);
+    }
+
+    function loadMission(idx) {
+        state.currentMission = MISSIONS[idx];
+        state.userAnswer = '';
+        const m = state.currentMission;
+        const container = document.getElementById('mission-content');
+        
+        let html = `<div class="m-tag">${m.tag}</div><div class="m-q">${m.q}</div>`;
+        if (m.hint) html += `<div class="m-hint">${m.hint}</div>`;
+
+        if (m.type === 'fill' || m.type === 'think') {
+            html += `
+                <textarea class="m-input" id="mission-input-text" rows="4" placeholder="在此輸入你的觀察..." oninput="checkMissionValid(this.value)"></textarea>
+                <div class="char-count" id="char-c">0 / 50</div>
+            `;
+        } else if (m.type === 'choice') {
+            html += `<div class="choice-list">`;
+            m.choices.forEach((c, i) => {
+                html += `<div class="choice-item" onclick="selectChoice(this, '${c}')">${c}</div>`;
+            });
+            html += `</div>`;
+        }
+
+        container.innerHTML = html;
+        document.getElementById('mission-next').classList.add('disabled-action');
+        navTo('scr-mission');
+    }
+
+    function checkMissionValid(val) {
+        state.userAnswer = val;
+        const countDisplay = document.getElementById('char-c');
+        if(countDisplay) countDisplay.innerText = `${val.length} / 50`;
+        const btn = document.getElementById('mission-next');
+        val.trim().length >= 2 ? btn.classList.remove('disabled-action') : btn.classList.add('disabled-action');
+    }
+
+    function selectChoice(el, val) {
+        document.querySelectorAll('.choice-item').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        state.userAnswer = val;
+        document.getElementById('mission-next').classList.remove('disabled-action');
+    }
+
+    function finishMission() {
+        navTo('scr-mood');
+        document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+        
+        const btn = document.getElementById('mood-submit');
+        btn.classList.add('disabled-action');
+        
+        if(state.hasReceivedPointsToday) {
+            btn.innerText = "儲存並前往留言板 (今日點數已滿)";
+        } else {
+            btn.innerText = "儲存並前往留言板";
+        }
+        
+        document.getElementById('mood-note').value = '';
+        state.userMood = null;
+    }
+
+    // --- MOOD & SUBMIT ---
+    function selectMood(el, emoji, label) {
+        document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+        state.userMood = emoji;
+        state.userMoodLabel = label;
+        document.getElementById('mood-submit').classList.remove('disabled-action');
+    }
+
+    function submitResult() {
+        const m = state.currentMission;
+        const note = document.getElementById('mood-note').value;
+        const shortStationName = state.currentStation.name.split(' ')[0];
+        const todayStr = new Date().toLocaleDateString();
+
+        let earnedPts = 0;
+        
+        if (!state.hasReceivedPointsToday) {
+            earnedPts = m.pts;
+            state.pts += earnedPts;
+            state.hasReceivedPointsToday = true;
+            localStorage.setItem('metro_sense_last_points_date', todayStr);
+        }
+
+        state.missionsDone += 1;
+
+        state.logs.unshift({
+            q: m.q, ans: state.userAnswer, mood: state.userMood, moodLabel: state.userMoodLabel,
+            time: "剛剛", station: shortStationName, pts: earnedPts
+        });
+
+        COMMUNITY_POSTS.unshift({
+            station: shortStationName, mood: state.userMood, moodLabel: state.userMoodLabel,
+            content: state.userAnswer + (note ? ` (${note})` : ''), time: "剛剛", tag: m.tag,
+            isMine: true
+        });
+        if(COMMUNITY_POSTS.length > 20) COMMUNITY_POSTS.pop();
+
+        if (earnedPts > 0) {
+            showToast(`🎉 成功獲得 ${earnedPts} pt！`);
+        } else {
+            showToast(`📝 紀錄成功 (今日點數已達上限)`);
+        }
+
+        navTo('scr-board', 'group');
+    }
+
+    // --- MESSAGE BOARDS TABS ---
+    function switchBoardTab(tabId) {
+        document.querySelectorAll('#scr-board .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('pane-group').classList.add('hidden');
+        document.getElementById('pane-personal').classList.add('hidden');
+
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.getElementById(`pane-${tabId}`).classList.remove('hidden');
+
+        if (tabId === 'group') renderGroupBoard();
+        if (tabId === 'personal') renderPersonalBoard();
+    }
+
+    function renderGroupBoard() {
+        const container = document.getElementById('board-group-list');
+        container.innerHTML = COMMUNITY_POSTS.map(p => `
+            <div class="post" style="${p.isMine ? 'border-color: var(--sage); background: rgba(148,168,154,0.05);' : ''}">
+                <div class="post-header">
+                    <span>${p.time} · ${p.station} ${p.isMine ? '<span style="color:var(--sage-dark);font-weight:700;margin-left:4px;">(我的留言)</span>' : ''}</span>
+                    <span class="post-tag">${p.tag}</span>
+                </div>
+                <div class="post-content">${p.content}</div>
+                <div class="post-footer">
+                    <div class="post-mood"><span style="font-size:14px;">${p.mood}</span> ${p.moodLabel}</div>
+                    <span style="font-size: 16px; color: var(--text-muted); cursor:pointer;">🤍</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderPersonalBoard() {
+        const container = document.getElementById('board-personal-list');
+        if (state.logs.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:50px 20px; color:var(--text-muted); font-size:14px;">還沒有感官紀錄，開始你的第一個任務吧！</div>';
+            return;
+        }
+
+        container.innerHTML = state.logs.map(l => `
+            <div class="post" style="border-left: 4px solid var(--sage);">
+                <div class="post-header">
+                    <span>${l.time} · ${l.station}</span>
+                    <span style="color:var(--sage-dark); font-weight:700;">+${l.pts} pt</span>
+                </div>
+                <div style="font-weight:900; font-size:clamp(14px, 4vw, 15px); margin-bottom:8px; color:var(--text-main);">${l.q}</div>
+                <div style="font-size:clamp(13px, 3.5vw, 14px); background: #fff; padding:12px; border-radius: 8px; margin: 12px 0; color:var(--text-main); line-height:1.5; border: 1px solid var(--border);">${l.ans}</div>
+                <div class="post-footer" style="justify-content: flex-start;">
+                    <div class="post-mood"><span style="font-size:14px;">${l.mood}</span> ${l.moodLabel}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // --- REWARD GACHA LOGIC ---
+    let rwCanvas, rwCtx, rwAngle = 0;
+    
+    function switchRwTab(tabId) {
+        document.querySelectorAll('#scr-reward .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('pane-rw-spin').classList.add('hidden');
+        document.getElementById('pane-rw-coupons').classList.add('hidden');
+
+        document.getElementById(`tab-rw-${tabId}`).classList.add('active');
+        document.getElementById(`pane-rw-${tabId}`).classList.remove('hidden');
+
+        if (tabId === 'spin') {
+            setTimeout(initRwWheel, 50); 
+        } else {
+            renderCoupons();
+        }
+    }
+
+    function initRwWheel() {
+        rwCanvas = document.getElementById('rw-wheel-canvas');
+        if(!rwCanvas) return;
+        rwCtx = rwCanvas.getContext('2d');
+        
+        const size = 240;
+        const dpr = window.devicePixelRatio || 1;
+        rwCanvas.width = size * dpr;
+        rwCanvas.height = size * dpr;
+        rwCtx.scale(dpr, dpr);
+        
+        drawRwWheel();
+    }
+
+    function drawRwWheel() {
+        const cx = 120, cy = 120, radius = 115;
+        rwCtx.clearRect(0, 0, 240, 240);
+        const slice = (Math.PI * 2) / RW_SLICES.length;
+
+        RW_SLICES.forEach((m, i) => {
+            const startAngle = rwAngle + i * slice;
+            const endAngle = rwAngle + (i + 1) * slice;
+
+            rwCtx.beginPath();
+            rwCtx.moveTo(cx, cy);
+            rwCtx.arc(cx, cy, radius, startAngle, endAngle);
+            rwCtx.fillStyle = m.color;
+            rwCtx.fill();
+            rwCtx.strokeStyle = '#fff';
+            rwCtx.lineWidth = 3;
+            rwCtx.stroke();
+
+            rwCtx.save();
+            rwCtx.translate(cx, cy);
+            rwCtx.rotate(startAngle + slice / 2);
+            rwCtx.textAlign = "right";
+            rwCtx.textBaseline = "middle";
+            
+            const isLightBg = (m.color === '#F4F5F3' || m.color === '#F8F1F1' || m.color === '#E8D3D1');
+            rwCtx.fillStyle = isLightBg ? '#4A4A4A' : '#FFFFFF';
+            
+            rwCtx.font = "bold 13px 'Noto Sans TC'";
+            rwCtx.fillText(m.text, radius - 20, 0);
+            
+            rwCtx.font = "18px sans-serif";
+            rwCtx.fillText(m.icon, radius - 80, 0);
+            
+            rwCtx.restore();
+        });
+
+        rwCtx.beginPath(); rwCtx.arc(cx, cy, 22, 0, Math.PI*2);
+        rwCtx.fillStyle = '#fff'; rwCtx.fill();
+        rwCtx.strokeStyle = '#94A89A'; rwCtx.lineWidth = 4; rwCtx.stroke();
+        rwCtx.fillStyle = '#94A89A'; rwCtx.font = "18px 'Space Mono'";
+        rwCtx.textAlign = "center"; rwCtx.textBaseline = "middle";
+        rwCtx.fillText("🎁", cx, cy + 2);
+    }
+
+    function spinReward() {
+        if (state.pts < 100) {
+            showToast("⚠️ 點數不足！需要 100 pt 才能轉動輪盤。");
+            return;
+        }
+
+        const btn = document.getElementById('rw-spin-btn');
+        btn.classList.add('disabled-action');
+        btn.innerText = "抽取中...";
+
+        state.pts -= 100;
+        document.querySelectorAll('.nav-pts-badge').forEach(el => el.innerText = state.pts);
+
+        let spinSpeed = 0.5 + Math.random() * 0.2; 
+        let duration = 3000 + Math.random() * 1500; 
+        let startTime = null;
+
+        function animate(timestamp) {
+            if (!startTime) startTime = timestamp;
+            let progress = timestamp - startTime;
+            
+            let easeOut = 1 - Math.pow(1 - progress / duration, 3);
+            let currentSpeed = spinSpeed * (1 - easeOut);
+            
+            rwAngle += currentSpeed;
+            drawRwWheel();
+
+            if (progress < duration) {
+                requestAnimationFrame(animate);
+            } else {
+                btn.classList.remove('disabled-action');
+                btn.innerHTML = `<span style="font-size: 16px; margin-right: 4px;">🎯</span> 花費 100 pt 抽取美食`;
+                
+                const slice = (Math.PI * 2) / RW_SLICES.length;
+                const normalizedAngle = (Math.PI * 1.5 - rwAngle) % (Math.PI * 2);
+                const positiveAngle = normalizedAngle < 0 ? normalizedAngle + Math.PI * 2 : normalizedAngle;
+                const idx = Math.floor(positiveAngle / slice);
+                
+                setTimeout(() => showRewardResult(idx), 300);
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+
+    function showRewardResult(idx) {
+        const wonItem = RW_SLICES[idx];
+        const stationSelector = document.getElementById('rw-station-select');
+        const stationName = stationSelector.options[stationSelector.selectedIndex].text.split(' ')[0];
+        
+        if (wonItem.text === '銘謝惠顧') {
+            showModal("再接再厲！", "💨", "哎呀！這次運氣差了一點點，下次再來試試手氣吧！", "確定", null);
+        } else {
+            const fullCouponName = `[${stationName}] ${wonItem.text}`;
+            
+            state.coupons.unshift({
+                name: wonItem.text,
+                station: stationName,
+                icon: wonItem.icon,
+                date: new Date().toLocaleDateString()
+            });
+            
+            showModal("🎉 恭喜中獎！", wonItem.icon, `獲得優惠：\n${fullCouponName}\n\n已自動存入您的「我的票券」匣中。`, "前往查看", () => {
+                switchRwTab('coupons');
+            });
+        }
+    }
+
+    // --- COUPON USAGE LOGIC ---
+    function renderCoupons() {
+        const container = document.getElementById('reward-coupon-list');
+        
+        if (state.coupons.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:50px 20px; color:var(--text-muted); font-size:14px;">尚未獲得任何票券，快去轉動輪盤試試手氣吧！</div>';
+            return;
+        }
+
+        container.innerHTML = state.coupons.map((c, i) => `
+            <div class="rw-item" style="animation-delay: ${i * 0.05}s">
+                <div class="rw-icon">${c.icon}</div>
+                <div class="rw-info">
+                    <div class="rw-name" style="font-size: 15px;">${c.name}</div>
+                    <div class="rw-meta">
+                        <span style="color:var(--sage-dark); font-weight:700;">📍 適用：${c.station}</span>
+                        <span style="margin-top: 2px;">獲得日期：${c.date}</span>
+                    </div>
+                </div>
+                <button class="rw-btn" onclick="useCoupon(${i})">立即使用</button>
+            </div>
+        `).join('');
+    }
+
+    function useCoupon(index) {
+        if(confirm('確定要核銷這張優惠券嗎？\n核銷後票券將會消失且無法復原。')) {
+            state.coupons.splice(index, 1);
+            showToast('✅ 優惠券已成功核銷');
+            renderCoupons(); 
+        }
+    }
+</script>
+
+</body>
+</html>
